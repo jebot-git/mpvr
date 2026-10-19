@@ -4,6 +4,7 @@ import argparse
 import base64
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
@@ -15,6 +16,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+import urllib.parse
 
 HERE = Path(__file__).resolve().parent
 
@@ -91,7 +93,67 @@ def control(ctl, *args):
     return r.stdout.strip()
 
 
-def video_args(args, size, name, ipc, layout, swap, context='wayland'):
+def stereo_metadata(value):
+    """Return supported SBS, explicit mono, unsupported stereo, or no evidence."""
+    def normalize(text):
+        return str(text).lower().replace('-', '_').replace(' ', '_')
+    for stream in value.get('streams', []):
+        tags = {str(k).lower(): v for k, v in stream.get('tags', {}).items()}
+        if 'stereo_mode' in tags:
+            mode = normalize(tags['stereo_mode'])
+            if mode in ('left_right', 'right_left', 'side_by_side', 'sbs2l', 'sbs2r', '1', '11'):
+                return 'sbs'
+            if mode in ('mono', '2d', '0'): return 'mono'
+            return 'unsupported'
+    for item in [*value.get('streams', []), *value.get('frames', [])]:
+        for data in item.get('side_data_list', []):
+            if normalize(data.get('side_data_type')) != 'stereo_3d': continue
+            mode = normalize(data.get('type', ''))
+            if mode in ('side_by_side', 'sidebyside', 'left_right', 'right_left'): return 'sbs'
+            if mode in ('2d', 'mono'): return 'mono'
+            return 'unsupported'
+    return None
+
+
+def recognize_video(source, requested='auto'):
+    if requested != 'auto':
+        return requested in ('full-sbs', 'half-sbs'), 'manual ' + requested
+    parsed = urllib.parse.urlsplit(source)
+    path = urllib.parse.unquote(parsed.path)
+    if Path(path).suffix.lower() in ('.m3u', '.m3u8', '.pls', '.xspf', '.mpls'):
+        return False, 'playlist/manifest requires explicit SBS layout'
+    probe_source = (urllib.request.url2pathname(parsed.path)
+                    if parsed.scheme == 'file' and parsed.netloc in ('', 'localhost') else source)
+    try:
+        result = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            '-read_intervals', '%+#4', '-show_streams', '-show_frames',
+            '-show_entries', 'stream=index,width,height:stream_tags=stereo_mode:stream_side_data:frame_side_data',
+            '-of', 'json', probe_source], capture_output=True, text=True, timeout=4, check=True)
+        metadata = stereo_metadata(json.loads(result.stdout))
+        if metadata is not None:
+            return metadata == 'sbs', 'source metadata: ' + metadata
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    stem = Path(path).stem.upper()
+    if re.search(r'(?<![A-Z0-9])(?:H[-_. ]?SBS|HALF[-_. ]?SBS|F[-_. ]?SBS|FULL[-_. ]?SBS|SBS)(?![A-Z0-9])', stem):
+        return True, 'SBS filename marker'
+    return False, 'no supported stereo evidence'
+
+
+def only_stereo_sources(args, requested):
+    # An opaque playlist/script may add 2D files later. Keep uncertain launch
+    # requests on the desktop instead of exposing packed mono to the headset.
+    if requested == 'mono': return False
+    if requested in ('full-sbs', 'half-sbs'): return True
+    before = args[:args.index('--')] if '--' in args else args
+    for arg in before:
+        if arg.startswith(('--playlist', '--autocreate-playlist', '--{')): return False
+    sources = [arg for arg in before if not arg.startswith('-')]
+    if '--' in args: sources += args[args.index('--') + 1:]
+    return bool(sources) and all(recognize_video(source, requested)[0] for source in sources)
+
+
+def video_args(args, size, name, ipc, layout, swap, context='wayland', stereo_only=False):
     # Explicit routing/rendering options follow user arguments so config cannot
     # silently redirect the XR window or reintroduce whole-frame letterboxing.
     managed = ['--vo=gpu-next', '--gpu-api=opengl', f'--gpu-context={context}',
@@ -102,7 +164,8 @@ def video_args(args, size, name, ipc, layout, swap, context='wayland'):
         f'--glsl-shaders-append={HERE / "sbs.glsl"}',
         '--vf-append=format:stereo-in=sbs2l',
         f'--script-opts-append=mpvr-layout={layout}',
-        f'--script-opts-append=mpvr-swap={"yes" if swap else "no"}']
+        f'--script-opts-append=mpvr-swap={"yes" if swap else "no"}',
+        f'--script-opts-append=mpvr-stereo_only={"yes" if stereo_only else "no"}']
     if not any(a.startswith('--hwdec=') or a == '--no-hwdec' for a in args):
         managed.append('--hwdec=auto-safe')
     if '--' in args:
@@ -122,6 +185,31 @@ def connect_ipc(path, child=None, timeout=12):
         except OSError:
             sock.close(); time.sleep(.05)
     raise RuntimeError('mpv did not open its playback IPC socket')
+
+
+def monitor_playback(sock):
+    sock.sendall(b'{"command":["observe_property",991,"user-data/mpvr"]}\n')
+    with sock.makefile('rb') as stream:
+        for line in stream:
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            data = event.get('data')
+            if (event.get('event') == 'property-change' and event.get('id') == 991
+                    and isinstance(data, dict) and data.get('desktop') is True
+                    and isinstance(data.get('path'), str)):
+                position = data.get('start', 0)
+                if not isinstance(position, (int, float)) or position < 0: position = 0
+                state_args = []
+                if type(data.get('mute')) is bool:
+                    state_args.append('--mute=' + ('yes' if data['mute'] else 'no'))
+                for key in ('volume', 'speed'):
+                    if isinstance(data.get(key), (int, float)):
+                        state_args.append(f'--{key}={data[key]}')
+                child = subprocess.Popen([str(native_player()), *state_args, f'--start={position}', '--', data['path']])
+                print(f'mpvr: 2D content moved to desktop (PID {child.pid})', file=sys.stderr)
+                return
 
 
 def encode_args(args):
@@ -147,7 +235,6 @@ def main(argv=None):
     if opts.xr_help:
         parser.print_help(); return 0
     if opts.domed: opts.xr_output = 'domed'
-    import re
     if not re.fullmatch(r'[1-9][0-9]{1,3}x[1-9][0-9]{1,3}', opts.xr_size):
         raise ValueError('--xr-size must be WIDTHxHEIGHT (10–9999 pixels)')
     if int(opts.xr_size.split('x')[0]) % 2:
@@ -162,8 +249,11 @@ def main(argv=None):
         # Inside DomeD stay in its realm; never fall through into another desktop.
         if dome is not None: backend = 'domed' if dome['active'] else 'off'
         else: backend = 'wayvr' if not info and headset_connected() else 'off'
+    if backend == 'wayvr' and not only_stereo_sources(args, opts.sbs_layout):
+        print('mpvr: 2D or unverified input; using desktop playback', file=sys.stderr)
+        backend = 'off'
     if '--version' in option_args or '-V' in option_args:
-        print('mpvr 0.1.0 (SBS XR fork of mpv)', flush=True)
+        print('mpvr 0.1.1 (SBS XR fork of mpv)', flush=True)
     if info or not args or backend == 'off':
         os.execv(native_player(), [str(native_player()), *args])
     if backend == 'domed' and not (dome and dome['active']):
@@ -176,7 +266,7 @@ def main(argv=None):
     with tempfile.TemporaryDirectory(prefix=f'mpvr-{os.getpid()}-') as directory:
         ipc = Path(directory) / 'ipc'
         context = 'x11egl' if backend == 'desktop' and not os.environ.get('WAYLAND_DISPLAY') else 'wayland'
-        playback = video_args(args, opts.xr_size, name, ipc, opts.sbs_layout, opts.swap_eyes, context)
+        playback = video_args(args, opts.xr_size, name, ipc, opts.sbs_layout, opts.swap_eyes, context, stereo_only=backend == 'wayvr')
         try:
             if backend == 'wayvr':
                 result = control(ctl, 'process-launch', '-n', name, '--', str(Path(__file__).resolve()),
@@ -197,7 +287,10 @@ def main(argv=None):
                 control(ctl, 'window-attrib', name, 'set', 'stereo_full_frame', 'false')
                 control(ctl, 'window-set-visible', name, '1')
             print(f'mpvr: {backend} SBS output ({name})', file=sys.stderr)
-            while ipc_socket.recv(65536): pass
+            monitor_playback(ipc_socket)
+            if child and child.poll() is None:
+                try: ipc_socket.sendall(b'{"command":["quit"]}\n')
+                except OSError: pass
             return child.wait(timeout=5) if child else 0
         finally:
             if ipc_socket:

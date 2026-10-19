@@ -34,13 +34,15 @@ def run_case(directory, env, name, width, height, layout='auto', swap=False, met
     image = np.zeros((height, width, 3), np.uint8)
     image[:, :width // 2] = (0, 0, 255)
     image[:, width // 2:] = (255, 0, 0)
-    if name == 'ordinary': image[:] = (0, 0, 255)
+    if name.startswith('ordinary'): image[:] = (0, 0, 255)
     args = ['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24',
             '-s', f'{width}x{height}', '-r', '24', '-i', '-', '-f', 'lavfi',
             '-i', 'sine=frequency=440:sample_rate=48000', '-t', '2', '-c:v', 'ffv1', '-c:a', 'pcm_s16le']
     if metadata: args += ['-metadata:s:v:0', f'stereo_mode={metadata}']
     if par: args += ['-vf', f'setsar={par}']
     subprocess.run([*args, str(media)], input=image.tobytes() * 48, check=True)
+    recognized, reason = mpvr.recognize_video(str(media), layout)
+    assert recognized == (not name.startswith('ordinary')), (name, recognized, reason)
     path = directory / f'{name}.socket'
     player_args = ['--no-config', '--gpu-sw=yes', '--ao=null', '--pause', f'--log-file={ART / (name + "-native.log")}', '--hwdec=no', '--loop-file=inf']
     if subtitles:
@@ -66,7 +68,7 @@ def run_case(directory, env, name, width, height, layout='auto', swap=False, met
             rgb = cv2.imread(str(frame))[:, :, ::-1]
             h, w = rgb.shape[:2]
             left, right = rgb[h // 2, w // 4], rgb[h // 2, 3 * w // 4]
-            if name == 'ordinary':
+            if name.startswith('ordinary'):
                 assert left[0] > 180 and right[0] > 180, (left, right)
             elif swap or metadata == 'right_left':
                 assert left[2] > 180 and right[0] > 180, (name, left, right, state)
@@ -109,6 +111,7 @@ def main():
             env.pop('WAYLAND_DISPLAY', None)
             reports = []
             reports.append(run_case(directory, env, 'ordinary', 320, 180))
+            reports.append(run_case(directory, env, 'ordinary_wide', 640, 180))
             reports.append(run_case(directory, env, 'movie_SBS', 640, 180))
             reports.append(run_case(directory, env, 'movie_HSBS', 320, 180))
             reports.append(run_case(directory, env, 'portrait_SBS', 180, 240))

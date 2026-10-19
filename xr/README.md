@@ -1,8 +1,8 @@
 # mpvr XR playback
 
 mpvr adds existing-SBS playback to an upstream mpv checkout. It does not synthesize
-3D depth or convert ordinary video to stereo. Normal videos can be shown identically
-to both eyes. The Python launcher routes processes; decoding, audio, synchronization,
+3D depth or convert ordinary video to stereo. Outside DomeD, ordinary videos stay
+on the desktop. DomeD and the explicit transport preview can duplicate mono to both eyes. The Python launcher routes processes; decoding, audio, synchronization,
 GPU rendering and seeking remain in the compiled mpv player.
 
 ## Commands
@@ -20,8 +20,10 @@ mpvr --xr-help
 
 `--xr-output=auto` is the default. Inside a recognized DomeD session it stays with
 that compositor: an inactive/older DomeD falls back to ordinary desktop viewing.
-Otherwise a connected, running WiVRn session selects WayVR. Explicit `wayvr` or
-`domed` fails clearly if unavailable. No runtime/session is started or restarted.
+Otherwise a connected, running WiVRn session selects WayVR only for recognized
+SBS input. 2D and unverified files use normal desktop playback, including when
+`--xr-output=wayvr` was requested without an explicit SBS layout. Explicit XR
+requests for recognized stereo fail clearly if the backend is unavailable. No runtime/session is started or restarted.
 Introspection commands such as `--version` never open XR windows.
 
 `--xr-size=2560x1440` sets the default transport resolution (width must be even).
@@ -35,9 +37,19 @@ Auto detection uses source SBS metadata first, preserving its declared per-eye
 display aspect, then filename tokens: SBS/FSBS/FULL-SBS or HSBS/HALF-SBS.
 RL/CROSS/CROSS-EYED filename markers reverse eye order. Explicit `--sbs-layout`
 overrides detection; `--swap-eyes` toggles the detected order. A wide aspect ratio
-alone does not imply SBS. Unknown/unmarked sources duplicate mono to both eyes.
-Non-SBS stereo metadata (e.g. top/bottom) reports an error; an explicit layout can
-override bad metadata. Layout updates on file/track changes in mpv.
+alone does not imply SBS, and a bare 3D filename label is insufficient.
+Before WayVR launch, ffprobe checks stream tags and the first four video packets
+for Stereo 3D side data (four-second timeout). Explicit mono/unsupported metadata
+overrides filename hints. If probing is unavailable, only explicit SBS filename
+markers or a manual full/half layout qualify. Mixed or opaque playlists/manifests
+stay on the desktop unless explicitly identified as SBS. Inside DomeD, unknown
+sources duplicate mono to both eyes. Non-SBS stereo metadata (e.g. top/bottom)
+uses desktop playback outside DomeD; DomeD reports an unsupported-layout error.
+An explicit layout can override bad metadata. Layout updates on file/track changes in mpv. A WayVR runtime guard blacks and
+pauses unrecognized/2D content loaded later (including IPC/playlist changes),
+then hands it to a native desktop player and closes only its own XR overlay.
+The handoff preserves playback position, volume, mute and speed. It does not
+resume the remaining XR playlist after that handoff.
 
 Standard mpv keyboard controls (Space, arrows, q), playlists, URLs, audio and
 subtitles are retained. The mouse OSC is disabled in XR because a packed stereo
@@ -76,7 +88,7 @@ python3 xr/install-domed.py --disable  # restore tracked previous Dome defaults
 ## Build and local replacement
 
 Use upstream mpv's dependencies plus Python 3 for the launcher. Required: FFmpeg,
-libplacebo >=7.360.1, libass, LuaJIT/Lua, OpenGL/EGL, Wayland (including protocol
+libplacebo >=7.360.1, libass, LuaJIT/Lua, ffprobe for metadata recognition, OpenGL/EGL, Wayland (including protocol
 headers), and audio development packages. VAAPI enables Intel hardware decoding.
 X11/EGL is used by isolated render tests; PipeWire is the local audio backend.
 
@@ -106,12 +118,17 @@ use development packages installed through the distribution package manager.
 ## Validation
 
 - Upstream Meson unit suite: 13 passed.
-- Launcher tests: routing, inactive sessions, off/help behavior, separator handling,
-  lossless encoded arguments and invalid surfaces.
+- Launcher tests: 14 passed; metadata/filename precedence, wide 2D input, mixed
+  playlists, runtime handoff, routing, inactive sessions, off/help behavior,
+  separator handling, lossless encoded arguments and invalid surfaces.
 - `tests/xr/test_playback.py`: real compiled gpu-next on private Xvfb/Mesa software
   rendering. Pixel checks cover full/half SBS, metadata full/half, right-first,
   mono duplication, portrait margins and duplicated subtitles. Audio decoding
   uses a null output; timing and seeking are checked.
+- `tests/xr/test_routing.py`: optional LIVE non-DomeD test with a connected
+  headset. Verifies that a real 2D file opens as a normal desktop player,
+  an unmarked metadata-only SBS file opens in WayVR, and loading 2D into that
+  running player hands off to the desktop and cleans up its XR window.
 - `tests/xr/test_domed.py`: private D-Bus/Xvfb and actual nested DomeD. Simulates
   only the XR heartbeat. Verifies XR-only placement, per-eye source pixels,
   Unicode paths, cleanup and inactive-session failure.

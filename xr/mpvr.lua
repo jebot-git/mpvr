@@ -1,14 +1,14 @@
 -- Source metadata is read before the metadata-only format filter tags output SBS.
 local mp = require 'mp'
 local options = require 'mp.options'
-local o = {layout = 'auto', swap = false}
+local o = {layout = 'auto', swap = false, stereo_only = false}
 options.read_options(o, 'mpvr')
 local function token(stem, name)
     return ('_' .. stem:upper():gsub('[^%w]', '_') .. '_'):find('_' .. name .. '_', 1, true) ~= nil
 end
 local function configure()
     local p = mp.get_property_native('video-params')
-    if not p or not p.w or not p.h then return end
+    if not p or not p.w or not p.h or not p.pixelformat or not p.par then return end
     local layout, swap = o.layout, o.swap
     local name = mp.get_property('filename/no-ext', '')
     local stereo = p['stereo-in'] or 'mono'
@@ -18,9 +18,13 @@ local function configure()
             -- aspect, whether the stored pair is full or half width.
             layout = 'metadata-sbs'
         elseif stereo ~= 'mono' and stereo ~= 'no' then
-            mp.msg.error('Unsupported stereo layout: ' .. stereo .. '; use --sbs-layout to override')
-            mp.commandv('quit', 2)
-            return
+            if o.stereo_only then
+                layout = 'mono' -- hand unsupported/2D content back to the desktop
+            else
+                mp.msg.error('Unsupported stereo layout: ' .. stereo .. '; use --sbs-layout to override')
+                mp.commandv('quit', 2)
+                return
+            end
         elseif token(name, 'HSBS') or token(name, 'HALF_SBS') or token(name, 'H_SBS') then
             layout = 'half-sbs'
         elseif token(name, 'SBS') or token(name, 'FSBS') or token(name, 'FULL_SBS') or token(name, 'F_SBS') then
@@ -41,6 +45,15 @@ local function configure()
     end
     local mode = ({mono = 0, ['full-sbs'] = 1, ['half-sbs'] = 2, ['metadata-sbs'] = 2})[layout]
     if not mode then return end
+    if mode == 0 and o.stereo_only then
+        mp.set_property('glsl-shader-opts', 'mpvr_layout=-1')
+        mp.set_property_native('pause', true)
+        mp.set_property_native('user-data/mpvr', {layout = 'mono', desktop = true,
+            path = mp.get_property('path'), start = mp.get_property_number('time-pos', 0),
+            volume = mp.get_property_number('volume', 100), mute = mp.get_property_native('mute'),
+            speed = mp.get_property_number('speed', 1)})
+        return
+    end
     mp.set_property('glsl-shader-opts', string.format('mpvr_layout=%d,mpvr_swap=%d,mpvr_par=%.9f',
         mode, swap and 1 or 0, par))
     mp.set_property_native('user-data/mpvr', {layout = layout, swap = swap, par = par})

@@ -16,7 +16,9 @@ mpvr --xr-output=off movie.mkv
 The local `mpv` command also launches this build. XR output fits each eye on the
 GPU, retains mpv playback/audio/seek controls, and duplicates subtitles. Existing
 SBS metadata and filename markers are recognized; explicit layout and eye-swap
-options handle ambiguous files. Ordinary video is duplicated to both eyes in XR.
+options handle ambiguous files. Outside DomeD, only recognized SBS videos open
+in XR; 2D/unverified videos stay on the desktop. DomeD can duplicate mono into
+both eyes. A runtime guard hands later 2D content back to the desktop.
 No depth synthesis or video conversion is performed.
 
 [Build, installation, backend options and validation](xr/README.md).

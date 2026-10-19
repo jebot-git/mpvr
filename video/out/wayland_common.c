@@ -4498,6 +4498,11 @@ void vo_wayland_handle_scale(struct vo_wayland_state *wl)
         width = lround(mp_rect_w(wl->geometry) / wl->scaling_factor);
         height = lround(mp_rect_h(wl->geometry) / wl->scaling_factor);
     }
+    // Scale/configure events can arrive before the first video geometry.
+    // A zero destination is a fatal protocol error (e.g. on WayVR). Keep
+    // the viewport unset until a later configure provides a valid size.
+    if (width <= 0 || height <= 0)
+        return;
     wp_viewport_set_destination(wl->viewport, width, height);
 }
 

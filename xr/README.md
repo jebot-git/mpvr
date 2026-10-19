@@ -62,6 +62,25 @@ Avoid additional crop/rotate/stereo pixel filters in XR mode; these can change
 the packed input after layout detection. HDR behavior depends on mpv's color
 management and the XR compositor/runtime; this prototype was validated with SDR.
 
+## Player UI
+
+The local build enables the mpv player and LuaJIT (`cplayer=true`, `lua=luajit`),
+with libass rendering for the built-in on-screen controller, context menu,
+selection dialogs, console and OSD. Desktop playback enables the standard
+mouse controls. Right-click opens the context menu; Ctrl+P opens the menu,
+Space toggles pause, arrows seek, and the backtick key opens the console.
+
+The application-menu and file-association entries use upstream's
+`--player-operation-mode=pseudo-gui`. Opening the application with no file keeps
+an idle desktop window available for dropping media. This idle launch stays on
+the desktop even when DomeD/XR is active. Command-line invocation retains normal
+mpv behavior; use `mpvr --player-operation-mode=pseudo-gui` for an idle window.
+
+SBS output retains keyboard controls and duplicates console/OSD to both eyes.
+The ordinary mouse OSC remains disabled on the packed XR surface because it
+expects desktop pointer coordinates. It is included in the executable and
+available for desktop playback.
+
 ## Backends and ownership
 
 WayVR launches one owned process/overlay with `left_right` and
@@ -94,7 +113,7 @@ X11/EGL is used by isolated render tests; PipeWire is the local audio backend.
 
 ```sh
 meson setup build --prefix="$HOME/.local/opt/mpvr" -Dbuildtype=release \
-  -Dlibmpv=false -Dtests=true -Dlua=enabled
+  -Dcplayer=true -Dlibmpv=false -Dtests=true -Dlua=enabled
 meson compile -C build
 meson test -C build --print-errorlogs
 python3 -m unittest discover -s tests/xr -p test_launcher.py
@@ -118,9 +137,12 @@ use development packages installed through the distribution package manager.
 ## Validation
 
 - Upstream Meson unit suite: 13 passed.
-- Launcher tests: 14 passed; metadata/filename precedence, wide 2D input, mixed
+- Launcher tests: 15 passed; metadata/filename precedence, wide 2D input, mixed
   playlists, runtime handoff, routing, inactive sessions, off/help behavior,
   separator handling, lossless encoded arguments and invalid surfaces.
+- `tests/xr/test_ui.py`: verifies the installed executable on private Xvfb:
+  idle GUI startup, rendered OSC, mouse play/pause, context menu, console, and
+  keyboard controls with console rendering in both SBS eyes.
 - `tests/xr/test_playback.py`: real compiled gpu-next on private Xvfb/Mesa software
   rendering. Pixel checks cover full/half SBS, metadata full/half, right-first,
   mono duplication, portrait margins and duplicated subtitles. Audio decoding

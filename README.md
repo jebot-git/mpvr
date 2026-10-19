@@ -21,7 +21,10 @@ in XR; 2D/unverified videos stay on the desktop. DomeD can duplicate mono into
 both eyes. A runtime guard hands later 2D content back to the desktop.
 No depth synthesis or video conversion is performed.
 
-[Build, installation, backend options and validation](xr/README.md).
+The build includes mpv’s LuaJIT on-screen controls, context menu and console.
+The application-menu entry opens an idle GUI when no file is selected.
+
+[Build, installation, UI, backend options and validation](xr/README.md).
 
 The native Wayland change defers zero-sized viewport requests during startup,
 fixing a protocol error reproduced on the live WayVR compositor. DomeD's companion

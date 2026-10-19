@@ -243,7 +243,13 @@ def main(argv=None):
     option_args = args[:args.index('--')] if '--' in args else args
     info = any(a in ('--help', '-h', '--version', '-V', '--list-options', '--list-protocols', '--list-properties')
                or a.endswith('=help') for a in option_args)
-    backend = opts.xr_output
+    sources = [a for a in option_args if not a.startswith('-')]
+    if '--' in args: sources += args[args.index('--') + 1:]
+    gui_idle = ('--player-operation-mode=pseudo-gui' in option_args and not sources
+                and not any(a.startswith('--playlist=') for a in option_args))
+    # Opening the application menu without a file should create the normal
+    # idle GUI, including inside an active DomeD session.
+    backend = 'off' if gui_idle else opts.xr_output
     dome = domed_status() if backend in ('auto', 'domed') and not info else None
     if backend == 'auto':
         # Inside DomeD stay in its realm; never fall through into another desktop.
@@ -253,7 +259,7 @@ def main(argv=None):
         print('mpvr: 2D or unverified input; using desktop playback', file=sys.stderr)
         backend = 'off'
     if '--version' in option_args or '-V' in option_args:
-        print('mpvr 0.1.1 (SBS XR fork of mpv)', flush=True)
+        print('mpvr 0.1.2 (SBS XR fork of mpv)', flush=True)
     if info or not args or backend == 'off':
         os.execv(native_player(), [str(native_player()), *args])
     if backend == 'domed' and not (dome and dome['active']):

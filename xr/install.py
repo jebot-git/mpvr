@@ -44,7 +44,7 @@ def main():
     applications.mkdir(parents=True, exist_ok=True)
     exe = str(Path.home() / '.local/bin/mpvr').replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%')
     entry = ('[Desktop Entry]\nType=Application\nName=mpvr\nComment=Play videos with optional SBS XR output\n'
-             f'Exec="{exe}" -- %U\nIcon=mpv\nTerminal=false\nCategories=AudioVideo;Video;Player;\n'
+             f'Exec="{exe}" --player-operation-mode=pseudo-gui -- %U\nIcon=mpv\nTerminal=false\nCategories=AudioVideo;Video;Player;\n'
              'MimeType=video/mp4;video/x-matroska;video/webm;video/quicktime;video/x-msvideo;video/mpeg;\n')
     for name in ('mpvr.desktop', 'mpv.desktop'):
         path = applications / name; backup(path)

@@ -46,6 +46,13 @@ class LauncherTests(unittest.TestCase):
     def test_odd_surface_width_is_rejected(self):
         with self.assertRaisesRegex(ValueError, 'even'): mpvr.main(['--xr-size=641x360', 'a.mkv'])
 
+    def test_empty_gui_starts_desktop_without_contacting_xr(self):
+        args = ['--player-operation-mode=pseudo-gui', '--']
+        with patch.object(mpvr, 'domed_status') as dome, patch.object(mpvr, 'headset_connected') as headset, patch.object(mpvr.os, 'execv', side_effect=SystemExit) as execute:
+            with self.assertRaises(SystemExit): mpvr.main(args)
+            dome.assert_not_called(); headset.assert_not_called()
+            self.assertEqual(execute.call_args.args[1][1:], args)
+
     def test_source_metadata_precedes_filename(self):
         for mode, expected in [('left_right', True), ('right_left', True), ('mono', False), ('top_bottom', False)]:
             payload = {'streams': [{'tags': {'stereo_mode': mode}}]}

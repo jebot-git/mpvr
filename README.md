@@ -1,6 +1,6 @@
 # mpvr
 
-Private mpv fork with GPU SBS video playback in active WayVR/WiVRn and DomeD XR
+mpv fork with GPU SBS video playback in active WayVR/WiVRn and DomeD XR
 sessions. Based on upstream mpv revision
 `6a262d11f63733d37e3ee6d5fafcb1be1ef83952` (2026-10-18), the latest upstream
 checkout when this fork was created. Upstream history, authors and licenses are

@@ -17,6 +17,14 @@ protocols = [[wl_protocol_dir, 'stable/linux-dmabuf/linux-dmabuf-v1.xml'],
 wl_protocols_source = []
 wl_protocols_headers = []
 
+appmenu = dependency('gio-2.0', version: '>= 2.58', required: false)
+features += {'wayland-appmenu': appmenu.found()}
+if features['wayland-appmenu']
+    protocols += [[meson.current_source_dir(), 'appmenu.xml']]
+    dependencies += appmenu
+    sources += files('wayland_menu.c')
+endif
+
 foreach v: ['1.39', '1.41', '1.44', '1.47', '1.48']
     features += {'wayland-protocols-' + v.replace('.', '-'):
         wayland['deps'][2].version().version_compare('>=' + v)}

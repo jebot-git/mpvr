@@ -41,6 +41,11 @@
 #include "wayland_common.h"
 #include "win_state.h"
 
+#if HAVE_WAYLAND_APPMENU
+#include "appmenu.h"
+#include "wayland_menu.h"
+#endif
+
 // Generated from wayland-protocols
 #include "idle-inhibit-unstable-v1.h"
 #include "text-input-unstable-v3.h"
@@ -2800,6 +2805,14 @@ static void registry_handle_add(void *data, struct wl_registry *reg, uint32_t id
     int found = 1;
     struct vo_wayland_state *wl = data;
 
+#if HAVE_WAYLAND_APPMENU
+    if (!strcmp(interface, org_kde_kwin_appmenu_manager_interface.name)) {
+        wl->appmenu_manager = wl_registry_bind(reg, id,
+            &org_kde_kwin_appmenu_manager_interface, MPMIN(ver, 2));
+        return;
+    }
+#endif
+
     if (!strcmp(interface, wl_compositor_interface.name) && (ver >= 4) && found++) {
         ver = MPMIN(ver, 6); /* Cap at 6 in case new events are added later. */
         wl->compositor = wl_registry_bind(reg, id, &wl_compositor_interface, ver);
@@ -4261,6 +4274,11 @@ int vo_wayland_control(struct vo *vo, int *events, int request, void *arg)
     wl_display_dispatch_pending(wl->display);
 
     switch (request) {
+#if HAVE_WAYLAND_APPMENU
+    case VOCTRL_UPDATE_MENU:
+        vo_wayland_menu_update(wl, arg);
+        return VO_TRUE;
+#endif
     case VOCTRL_CHECK_EVENTS: {
         wayland_dispatch_events(wl, 1, 0);
         struct vo_wayland_seat *seat;
@@ -4733,6 +4751,9 @@ bool vo_wayland_init(struct vo *vo)
     wl->display_fd = wl_display_get_fd(wl->display);
 
     update_app_id(wl);
+#if HAVE_WAYLAND_APPMENU
+    vo_wayland_menu_init(wl);
+#endif
     mp_make_wakeup_pipe(wl->wakeup_pipe);
 
     wl->frame_callback = wl_surface_frame(wl->callback_surface);
@@ -4821,6 +4842,16 @@ void vo_wayland_uninit(struct vo *vo)
     struct vo_wayland_state *wl = vo->wl;
     if (!wl)
         return;
+
+#if HAVE_WAYLAND_APPMENU
+    vo_wayland_menu_uninit(wl);
+    if (wl->appmenu_manager) {
+        if (org_kde_kwin_appmenu_manager_get_version(wl->appmenu_manager) >= 2)
+            org_kde_kwin_appmenu_manager_release(wl->appmenu_manager);
+        else
+            org_kde_kwin_appmenu_manager_destroy(wl->appmenu_manager);
+    }
+#endif
 
     mp_input_put_key(wl->vo->input_ctx, MP_INPUT_RELEASE_ALL);
 

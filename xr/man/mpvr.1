@@ -13,6 +13,14 @@ file selected it opens an idle desktop window, including when DomeD or XR is
 active. Drop media into that window to begin playback. The player exits after
 the playlist finishes. Ordinary command-line invocation retains mpv behavior;
 use the pseudo-gui option explicitly when an idle window is wanted.
+.PP
+On Wayland, builds with GIO export the live player menu through KDE AppMenu and
+DBusMenu to DomeD's universal menu bar. Playback, tracks, audio, subtitles and
+window commands follow the existing context menu and custom menu.conf definitions,
+including nested menus, shortcuts and live checked, hidden and disabled states.
+Top-level actions appear under Player. Each window owns its export, which is
+removed when the window closes. The ordinary context menu remains available
+when the compositor or session bus does not support application menus.
 .SH OPTIONS
 .TP
 .B "\-\-xr\-help"

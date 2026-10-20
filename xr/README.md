@@ -82,6 +82,24 @@ The ordinary mouse OSC remains disabled on the packed XR surface because it
 expects desktop pointer coordinates. It is included in the executable and
 available for desktop playback.
 
+On Wayland, builds with GIO (`gio-2.0 >= 2.58`) export the same live `menu-data`
+model through `com.canonical.dbusmenu`, associated with the actual player surface
+using KDE's `org_kde_kwin_appmenu_manager` protocol. DomeD's universal menu can
+therefore invoke playback, track, subtitle, audio and window commands in desktop
+and XR windows. Custom `menu.conf` definitions, nested menus, shortcuts, hidden
+and disabled items, and checked states follow mpv's existing model. Top-level
+context-menu actions are grouped under **Player**; existing submenus retain
+their names. DomeD supplies its standard File/Edit/Window controls alongside
+the application's exports.
+
+Each window has its own D-Bus connection and endpoint. Menu changes publish
+`LayoutUpdated`; removed item IDs are never reused during that window's lifetime.
+Commands enter mpv's normal input queue. D-Bus calls run on a separate thread,
+and closing the window removes its export. Missing GIO, the AppMenu protocol or
+a session bus leaves the existing context menu available. Disabling the built-in
+select script's `populate_menu_data` option requires another script to supply
+`menu-data` for an application menu.
+
 ## Backends and ownership
 
 WayVR launches one owned process/overlay with `left_right` and
@@ -112,6 +130,8 @@ python3 xr/install-domed.py --disable  # restore tracked previous Dome defaults
 Use upstream mpv's dependencies plus Python 3 for the launcher. Required: FFmpeg,
 libplacebo >=7.360.1, libass, LuaJIT/Lua, ffprobe for metadata recognition, OpenGL/EGL, Wayland (including protocol
 headers), and audio development packages. VAAPI enables Intel hardware decoding.
+GIO development headers enable the optional Wayland universal-menu exporter;
+the KDE AppMenu protocol XML is included in this repository.
 X11/EGL is used by isolated render tests; PipeWire is the local audio backend.
 
 ```sh
@@ -146,6 +166,10 @@ use development packages installed through the distribution package manager.
 - `tests/xr/test_ui.py`: verifies the installed executable on private Xvfb:
   idle GUI startup, rendered OSC, mouse play/pause, context menu, console, and
   keyboard controls with console rendering in both SBS eyes.
+- `/usr/bin/python3 tests/xr/test_menu.py`: private D-Bus/Xvfb and actual nested
+  DomeD; verifies the live native menu, mute-state updates, compositor menu-bar
+  mouse activation, nested commands, disabled/hidden items, shortcuts, protocol
+  queries, stale-ID rejection and exporter cleanup. Requires Python GI and Xlib.
 - `tests/xr/test_playback.py`: real compiled gpu-next on private Xvfb/Mesa software
   rendering. Pixel checks cover full/half SBS, metadata full/half, right-first,
   mono duplication, portrait margins and duplicated subtitles. Audio decoding

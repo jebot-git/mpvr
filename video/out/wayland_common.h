@@ -73,6 +73,10 @@ struct vo_wayland_state {
     struct wl_subsurface    *video_subsurface;
     struct wl_event_queue   *color_queue;
 
+    /* Per-surface KDE AppMenu / DBusMenu export. */
+    struct org_kde_kwin_appmenu_manager *appmenu_manager;
+    struct wayland_menu *menu;
+
     /* Geometry */
     struct mp_rect geometry;
     struct mp_rect window_size;

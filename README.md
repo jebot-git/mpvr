@@ -23,6 +23,8 @@ both eyes. A runtime guard hands later 2D content back to the desktop.
 No depth synthesis or video conversion is performed.
 
 The build includes mpv’s LuaJIT on-screen controls, context menu and console.
+Wayland builds with GIO also export the live player menu to DomeD's universal
+menu bar using KDE AppMenu and DBusMenu, including custom menus and track choices.
 The application-menu entry opens an idle desktop GUI when no file is selected,
 including inside DomeD/XR. After the playlist finishes, the player exits.
 

@@ -7,6 +7,12 @@ mpvr [XR\-OPTIONS] [MPV\-OPTIONS] [FILE...]
 .fi
 .SH DESCRIPTION
 An mpv fork and launcher for GPU side\-by\-side playback in DomeD or an active WiVRn/WayVR session. Existing SBS content is fitted per eye, with subtitles duplicated. No depth synthesis is performed. In automatic mode outside DomeD, unrecognized or mono video stays on the desktop; DomeD can duplicate mono content into both eyes. Unrecognized options are passed to mpv.
+.SH APPLICATION MENU
+The application-menu entry uses \-\-player-operation-mode=pseudo-gui. With no
+file selected it opens an idle desktop window, including when DomeD or XR is
+active. Drop media into that window to begin playback. The player exits after
+the playlist finishes. Ordinary command-line invocation retains mpv behavior;
+use the pseudo-gui option explicitly when an idle window is wanted.
 .SH OPTIONS
 .TP
 .B "\-\-xr\-help"

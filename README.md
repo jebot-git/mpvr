@@ -23,7 +23,8 @@ both eyes. A runtime guard hands later 2D content back to the desktop.
 No depth synthesis or video conversion is performed.
 
 The build includes mpv’s LuaJIT on-screen controls, context menu and console.
-The application-menu entry opens an idle GUI when no file is selected.
+The application-menu entry opens an idle desktop GUI when no file is selected,
+including inside DomeD/XR. After the playlist finishes, the player exits.
 
 [Build, installation, UI, backend options and validation](xr/README.md).
 
@@ -50,6 +51,7 @@ Part of the [de-xr desktop](https://github.com/topics/de-xr):
 [DomeD](https://github.com/jebot-git/DomeD) provides the desktop/session,
 [Ghostty XR](https://github.com/jebot-git/ghostty-xr) the terminal,
 [mpvr](https://github.com/jebot-git/mpvr) video playback,
+[cmuxr](https://github.com/jebot-git/cmuxr) music playback and an audio-reactive XR floor,
 [fsvr](https://github.com/jebot-git/fsv-xr) file browsing,
 [qimgvr](https://github.com/jebot-git/qimgvr) image viewing,
 [Arc SBS](https://github.com/jebot-git/arc-sbs) depth conversion, and

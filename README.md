@@ -13,7 +13,8 @@ mpvr --domed --sbs-layout=half-sbs movie.mkv
 mpvr --xr-output=off movie.mkv
 ```
 
-The local `mpv` command also launches this build. XR output fits each eye on the
+Installations that include the compatibility launcher also expose this build as
+`mpv`; the distribution binary can coexist at `/usr/bin/mpv`. XR output fits each eye on the
 GPU, retains mpv playback/audio/seek controls, and duplicates subtitles. Existing
 SBS metadata and filename markers are recognized; explicit layout and eye-swap
 options handle ambiguous files. Outside DomeD, only recognized SBS videos open
@@ -32,3 +33,26 @@ changes add mpvr stereo identity/discovery and the required viewporter protocol.
 
 Upstream [GPL](LICENSE.GPL), [LGPL](LICENSE.LGPL) and [copyright notices](Copyright)
 remain in force. New XR integration files are provided under GPL-2.0-or-later.
+
+## Installed layout
+
+The shared DomeD deployment places the launcher at `/usr/local/bin/mpvr`, its
+Python/Lua/shader resources at `/usr/local/share/mpvr`, and the native player at
+`/usr/local/libexec/mpvr/mpv`. The source helper in `xr/install.py` instead creates
+a per-user installation; see the build guide before choosing either layout.
+`mpvr --xr-help` lists XR routing options; `mpvr --help` lists mpv options.
+
+## Command manuals and related projects
+
+Basic manuals: [mpvr.1](xr/man/mpvr.1). After installation, use `man mpvr`.
+
+Part of the [de-xr desktop](https://github.com/topics/de-xr):
+[DomeD](https://github.com/jebot-git/DomeD) provides the desktop/session,
+[Ghostty XR](https://github.com/jebot-git/ghostty-xr) the terminal,
+[mpvr](https://github.com/jebot-git/mpvr) video playback,
+[fsvr](https://github.com/jebot-git/fsv-xr) file browsing,
+[qimgvr](https://github.com/jebot-git/qimgvr) image viewing,
+[Arc SBS](https://github.com/jebot-git/arc-sbs) depth conversion, and
+[LightXR](https://github.com/jebot-git/LightXR) the optional login manager.
+Each application has its own dependencies and can be used independently where
+its selected backend permits.

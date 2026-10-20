@@ -1959,3 +1959,6 @@ summary({'cocoa': features['cocoa'] and features['swift'],
          'wayland': features['wayland'],
          'x11': features['x11']},
          bool_yn: true)
+
+# Static launcher manual; the upstream mpv manual remains separate.
+install_man('xr/man/mpvr.1')

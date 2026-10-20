@@ -66,7 +66,12 @@ try:
             DOME_PREVIEW_PORT=str(port), DOME_START_XR='0', LIBGL_ALWAYS_SOFTWARE='1',
             RUST_LOG='error', XR_RUNTIME_JSON=str(runtime / 'no-runtime.json'))
         env.pop('WAYLAND_DISPLAY', None); env.pop('WAYLAND_SOCKET', None)
-        start([os.environ.get('MPVR_DOME_BINARY', str(DOME / 'target/debug/dome-compositor')), '--backend', 'nested'], 'compositor', env)
+        # System updates replace the executable while a login session keeps
+        # running. Linux then appends " (deleted)" to /proc/PID/exe.
+        compositor_binary = runtime / 'dome-compositor'
+        compositor_source = os.environ.get('MPVR_DOME_BINARY', str(DOME / 'target/debug/dome-compositor'))
+        shutil.copy2(compositor_source, compositor_binary)
+        compositor = start([compositor_binary, '--backend', 'nested'], 'compositor', env)
         wait(scene)
         records = list(runtime.glob('*.dome-session.json'))
         record = next(p for p in records if json.loads(p.read_text())['realm'] == 'desktop')
@@ -77,6 +82,9 @@ try:
                 except OSError: pass
         worker = threading.Thread(target=heartbeat, daemon=True); worker.start()
         wait(lambda: json.load(request('/api/integrations/mpvr'))['xr_active'])
+        compositor_binary.unlink()
+        shutil.copy2(compositor_source, compositor_binary)
+        assert os.readlink(f'/proc/{compositor.pid}/exe').endswith(' (deleted)')
         media = runtime / 'video #ü_SBS.mkv'
         source = np.zeros((180, 640, 3), np.uint8)
         source[:, :320] = (0, 0, 255); source[:, 320:] = (255, 0, 0)
@@ -102,7 +110,8 @@ try:
         inactive = start([os.environ.get('MPVR_LAUNCHER', str(ROOT / 'xr/mpvr.py')), '--domed', str(media)], 'inactive', env)
         assert inactive.wait(timeout=8) == 2
         report = dict(xr_only_window=True, stereo='side_by_side', distinct_eye_pixels=True,
-                      cleanup=True, inactive_error=True, unicode_path=True, headset_verified=False)
+                      cleanup=True, inactive_error=True, unicode_path=True,
+                      executable_replaced=True, headset_verified=False)
         (ART / 'report.json').write_text(json.dumps(report, indent=2)); print(json.dumps(report))
 finally:
     stop.set()

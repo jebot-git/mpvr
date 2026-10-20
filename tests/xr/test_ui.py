@@ -88,7 +88,10 @@ with tempfile.TemporaryDirectory(prefix='mpvr-ui-') as directory:
                 ipc(file, ['script-binding', 'console/enable'])
                 console = shot('console')
                 assert (np.max(np.abs(console.astype(int)-controls.astype(int)), axis=2)>25).sum() > 300
-                ipc(file, ['quit']); assert child.wait(timeout=5) == 0
+                ipc(file, ['set_property', 'loop-file', 'no'])
+                ipc(file, ['seek', 1.8, 'absolute'])
+                ipc(file, ['set_property', 'pause', False])
+                assert child.wait(timeout=8) == 0
         with (ART / 'stereo.log').open('w') as log:
             child = subprocess.Popen([LAUNCHER, '--xr-output=desktop', '--sbs-layout=full-sbs',
                 '--xr-size=960x540', '--no-config', '--gpu-sw=yes', '--pause', '--ao=null',
@@ -113,10 +116,15 @@ with tempfile.TemporaryDirectory(prefix='mpvr-ui-') as directory:
                 time.sleep(.1)
                 ipc(file, ['keypress', 'SPACE'])
                 wait(lambda: get('pause') is False)
-                ipc(file, ['quit']); assert child.wait(timeout=8) == 0
+                ipc(file, ['set_property', 'loop-file', 'no'])
+                ipc(file, ['seek', 1.8, 'absolute'])
+                assert child.wait(timeout=8) == 0
+        subprocess.run([LAUNCHER, '--xr-output=off', '--no-config', '--vo=null', '--ao=null',
+                        '--really-quiet', str(media)], env=env, check=True, timeout=8)
         report = dict(gui_idle_window=True, lua_ui=True, osc_rendered=True, mouse_play_pause=True,
                       context_menu=True, console=True, installed_player=True,
-                      stereo_console_in_both_eyes=True, stereo_keyboard_controls=True)
+                      stereo_console_in_both_eyes=True, stereo_keyboard_controls=True,
+                      gui_and_stereo_exit_at_eof=True, cli_exit_at_eof=True)
         (ART / 'report.json').write_text(json.dumps(report, indent=2)); print(json.dumps(report))
     finally:
         if child and child.poll() is None: child.terminate(); child.wait(timeout=5)

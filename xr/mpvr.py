@@ -32,7 +32,10 @@ def socket_pid(path):
         sock.settimeout(1)
         sock.connect(str(path))
         pid, uid, _ = struct.unpack('3i', sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
-    if uid != os.getuid() or Path(f'/proc/{pid}/exe').resolve().name != 'dome-compositor':
+    # A package update can unlink the executable of a still-running session.
+    # readlink preserves Linux's deletion marker; resolve treats it as a path.
+    executable = os.readlink(f'/proc/{pid}/exe').removesuffix(' (deleted)')
+    if uid != os.getuid() or Path(executable).name != 'dome-compositor':
         raise ValueError('Wayland socket is not owned by your DomeD compositor')
     return pid
 

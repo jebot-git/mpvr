@@ -72,8 +72,9 @@ Space toggles pause, arrows seek, and the backtick key opens the console.
 
 The application-menu and file-association entries use upstream's
 `--player-operation-mode=pseudo-gui`. Opening the application with no file keeps
-an idle desktop window available for dropping media. This idle launch stays on
-the desktop even when DomeD/XR is active. Command-line invocation retains normal
+an idle desktop window available for dropping media. After the playlist finishes,
+the player exits, including when started from the application menu. This idle
+launch stays on the desktop even when DomeD/XR is active. Command-line invocation retains normal
 mpv behavior; use `mpvr --player-operation-mode=pseudo-gui` for an idle window.
 
 SBS output retains keyboard controls and duplicates console/OSD to both eyes.
@@ -96,6 +97,8 @@ the new player directly to that compositor's XR socket with app ID
 `org.mpvr.Sbs`; DomeD submits left/right halves to separate OpenXR eyes. No other
 window/app ID opts into stereo. It uses quad/cylinder layers already implemented
 for qimgvr. DomeD also advertises `wp_viewporter`, required by current mpv.
+Discovery accepts Linux's ` (deleted)` executable marker so updating DomeD
+does not prevent playback in an already-running session.
 
 Optional Dome-only default video associations:
 
@@ -153,7 +156,8 @@ use development packages installed through the distribution package manager.
   running player hands off to the desktop and cleans up its XR window.
 - `tests/xr/test_domed.py`: private D-Bus/Xvfb and actual nested DomeD. Simulates
   only the XR heartbeat. Verifies XR-only placement, per-eye source pixels,
-  Unicode paths, cleanup and inactive-session failure.
+  Unicode paths, discovery after replacing the running compositor executable,
+  cleanup and inactive-session failure.
 - `tests/xr/test_wayvr.py`: optional LIVE test, requires connected WiVRn/WayVR.
   Creates one owned muted overlay, checks stereo attributes, rendered eye pixels,
   playback progression, actual hardware decoder and cleanup. No other overlays

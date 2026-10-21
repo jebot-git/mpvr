@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Render actual mpv frames on private Xvfb and inspect window screenshots."""
 import importlib.util
+import http.server
+import functools
+import threading
 import json
 import os
 from pathlib import Path
@@ -34,6 +37,9 @@ def run_case(directory, env, name, width, height, layout='auto', swap=False, met
     image = np.zeros((height, width, 3), np.uint8)
     image[:, :width // 2] = (0, 0, 255)
     image[:, width // 2:] = (255, 0, 0)
+    if 'tb' in name.lower():
+        image[:height // 2] = (0, 0, 255)
+        image[height // 2:] = (255, 0, 0)
     if name.startswith('ordinary'): image[:] = (0, 0, 255)
     args = ['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24',
             '-s', f'{width}x{height}', '-r', '24', '-i', '-', '-f', 'lavfi',
@@ -48,9 +54,20 @@ def run_case(directory, env, name, width, height, layout='auto', swap=False, met
     if subtitles:
         sub = directory / 'test.srt'; sub.write_text('1\n00:00:00,000 --> 00:00:02,000\nSTEREO SUBTITLE\n')
         player_args += [f'--sub-file={sub}', '--sub-font-size=30', '--sub-color=#FFFFFFFF']
-    args = mpvr.video_args([*player_args, str(media)], '640x360', name, path, layout, swap, 'x11egl')
+    source = str(media)
+    if name.startswith('youtube'):
+        extractor = directory / (name + '-yt-dlp')
+        info = dict(id='fixture', title='fixture', url=env['MPVR_TEST_HTTP'] + '/' + media.name, ext='mkv',
+                    webpage_url='https://www.youtube.com/watch?v=fixture')
+        if 'title' in name: info['title'] = 'A film FULL TB'
+        else: info['stereo_mode'] = 'top_bottom'
+        extractor.write_text('#!/usr/bin/python3\nimport json\nprint(' + repr(json.dumps(info)) + ')\n')
+        extractor.chmod(0o755)
+        player_args += ['--ytdl=yes', f'--script-opts-append=ytdl_hook-ytdl_path={extractor}']
+        source = info['webpage_url']
+    args = mpvr.video_args([*player_args, source], '640x360', name, path, layout, swap, 'x11egl')
     log = (ART / f'{name}.log').open('w')
-    child = subprocess.Popen([str(ROOT / 'build/mpv'), *args], env=env, stdout=log, stderr=subprocess.STDOUT)
+    child = subprocess.Popen([os.environ.get('MPVR_NATIVE_PLAYER', str(ROOT / 'build/mpv')), *args], env=env, stdout=log, stderr=subprocess.STDOUT)
     try:
         sock = mpvr.connect_ipc(path, child)
         sock.settimeout(10)
@@ -70,12 +87,12 @@ def run_case(directory, env, name, width, height, layout='auto', swap=False, met
             left, right = rgb[h // 2, w // 4], rgb[h // 2, 3 * w // 4]
             if name.startswith('ordinary'):
                 assert left[0] > 180 and right[0] > 180, (left, right)
-            elif swap or metadata == 'right_left':
+            elif swap or metadata in ('right_left', 'bottom_top'):
                 assert left[2] > 180 and right[0] > 180, (name, left, right, state)
             else:
                 assert left[0] > 180 and right[2] > 180, (name, left, right, state)
             # Full 16:9 and half 16:9 pairs must fill each stretched eye.
-            if name in ('movie_SBS', 'movie_HSBS', 'metadata', 'right_metadata', 'explicit_metadata', 'half_metadata'):
+            if name in ('movie_SBS', 'movie_HSBS', 'metadata', 'right_metadata', 'explicit_metadata', 'half_metadata', 'movie_TB', 'movie_HTB', 'tb_metadata', 'tb_half_metadata', 'tb_explicit_metadata', 'youtube_tb_title', 'youtube_tb_metadata'):
                 assert rgb[h // 8, w // 4].max() > 180, (name, state)
                 assert rgb[h // 2, w // 32].max() > 180, (name, 'unexpected pillarbox', state)
             if 'portrait' in name:
@@ -109,6 +126,12 @@ def main():
             with os.fdopen(rd) as pipe: display = ':' + pipe.readline().strip()
             env = dict(os.environ, DISPLAY=display, LIBGL_ALWAYS_SOFTWARE='1')
             env.pop('WAYLAND_DISPLAY', None)
+            class QuietHandler(http.server.SimpleHTTPRequestHandler):
+                def log_message(self, *args): pass
+            httpd = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(QuietHandler, directory=directory))
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
+            env['MPVR_TEST_HTTP'] = f'http://127.0.0.1:{httpd.server_port}'
             reports = []
             reports.append(run_case(directory, env, 'ordinary', 320, 180))
             reports.append(run_case(directory, env, 'ordinary_wide', 640, 180))
@@ -121,9 +144,20 @@ def main():
             reports.append(run_case(directory, env, 'explicit_metadata', 640, 180, layout='full-sbs', metadata='right_left'))
             reports.append(run_case(directory, env, 'half_metadata', 320, 180, metadata='left_right', par='2'))
             reports.append(run_case(directory, env, 'subtitle_SBS', 640, 180, subtitles=True))
+            reports.append(run_case(directory, env, 'movie_TB', 320, 360))
+            reports.append(run_case(directory, env, 'movie_HTB', 320, 180))
+            reports.append(run_case(directory, env, 'tb_metadata', 320, 360, metadata='top_bottom'))
+            reports.append(run_case(directory, env, 'tb_half_metadata', 320, 180, metadata='top_bottom', par='1/2'))
+            reports.append(run_case(directory, env, 'tb_explicit_metadata', 320, 360, layout='full-tb', metadata='top_bottom'))
+            reports.append(run_case(directory, env, 'tb_reverse_metadata', 320, 360, metadata='bottom_top'))
+            reports.append(run_case(directory, env, 'tb_swap', 320, 360, layout='full-tb', swap=True))
+            reports.append(run_case(directory, env, 'tb_subtitle', 320, 360, layout='full-tb', subtitles=True))
+            reports.append(run_case(directory, env, 'youtube_tb_title', 320, 360))
+            reports.append(run_case(directory, env, 'youtube_tb_metadata', 320, 360))
             (ART / 'report.json').write_text(json.dumps(reports, indent=2))
             print(json.dumps(reports))
         finally:
+            if "httpd" in locals(): httpd.shutdown(); httpd.server_close()
             x.terminate(); x.wait(timeout=5)
 
 

@@ -1,6 +1,6 @@
 # mpvr
 
-mpv fork with GPU SBS video playback in active WayVR/WiVRn and DomeD XR
+mpv fork with GPU SBS and top/bottom video playback in active WayVR/WiVRn and DomeD XR
 sessions. Based on upstream mpv revision
 `6a262d11f63733d37e3ee6d5fafcb1be1ef83952` (2026-10-18), the latest upstream
 checkout when this fork was created. Upstream history, authors and licenses are
@@ -16,7 +16,7 @@ mpvr --xr-output=off movie.mkv
 Installations that include the compatibility launcher also expose this build as
 `mpv`; the distribution binary can coexist at `/usr/bin/mpv`. XR output fits each eye on the
 GPU, retains mpv playback/audio/seek controls, and duplicates subtitles. Existing
-SBS metadata and filename markers are recognized; explicit layout and eye-swap
+SBS/top-bottom metadata and filename markers are recognized; explicit layout and eye-swap
 options handle ambiguous files. Outside DomeD, only recognized SBS videos open
 in XR; 2D/unverified videos stay on the desktop. DomeD can duplicate mono into
 both eyes. A runtime guard hands later 2D content back to the desktop.

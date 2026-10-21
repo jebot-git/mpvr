@@ -68,7 +68,7 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual(execute.call_args.args[1][1:], args)
 
     def test_source_metadata_precedes_filename(self):
-        for mode, expected in [('left_right', True), ('right_left', True), ('mono', False), ('top_bottom', False)]:
+        for mode, expected in [('left_right', True), ('right_left', True), ('mono', False), ('top_bottom', True), ('bottom_top', True), ('checkerboard_rl', False)]:
             payload = {'streams': [{'tags': {'stereo_mode': mode}}]}
             with patch.object(mpvr.subprocess, 'run') as probe:
                 probe.return_value.stdout = json.dumps(payload)
@@ -86,7 +86,7 @@ class LauncherTests(unittest.TestCase):
 
     def test_markers_fallback_when_probe_unavailable(self):
         with patch.object(mpvr.subprocess, 'run', side_effect=OSError):
-            for name in ('a_SBS.mkv', 'a.HSBS.mp4', 'a_FULL-SBS.mkv', 'a_half_sbs.mp4'):
+            for name in ('a_SBS.mkv', 'a.HSBS.mp4', 'a_FULL-SBS.mkv', 'a_half_sbs.mp4', 'a_TB.mkv', 'a_HTB.mp4', 'a_FULL-TB.mkv'):
                 self.assertTrue(mpvr.recognize_video(name)[0], name)
 
     def test_mixed_and_opaque_playlists_use_desktop(self):

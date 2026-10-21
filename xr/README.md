@@ -1,6 +1,6 @@
 # mpvr XR playback
 
-mpvr adds existing-SBS playback to an upstream mpv checkout. It does not synthesize
+mpvr adds existing packed-stereo playback to an upstream mpv checkout. It does not synthesize
 3D depth or convert ordinary video to stereo. Outside DomeD, ordinary videos stay
 on the desktop. DomeD and the explicit transport preview can duplicate mono to both eyes. The Python launcher routes processes; decoding, audio, synchronization,
 GPU rendering and seeking remain in the compiled mpv player.
@@ -43,8 +43,8 @@ for Stereo 3D side data (four-second timeout). Explicit mono/unsupported metadat
 overrides filename hints. If probing is unavailable, only explicit SBS filename
 markers or a manual full/half layout qualify. Mixed or opaque playlists/manifests
 stay on the desktop unless explicitly identified as SBS. Inside DomeD, unknown
-sources duplicate mono to both eyes. Non-SBS stereo metadata (e.g. top/bottom)
-uses desktop playback outside DomeD; DomeD reports an unsupported-layout error.
+sources duplicate mono to both eyes. Top/bottom stereo metadata is repacked to the same SBS output on the GPU. Other
+stereo layouts use desktop playback outside DomeD; DomeD reports an unsupported-layout error.
 An explicit layout can override bad metadata. Layout updates on file/track changes in mpv. A WayVR runtime guard blacks and
 pauses unrecognized/2D content loaded later (including IPC/playlist changes),
 then hands it to a native desktop player and closes only its own XR overlay.
@@ -195,3 +195,38 @@ through-headset visual perception or a sustained playback performance benchmark.
 Sources: [upstream mpv](https://github.com/mpv-player/mpv),
 [GPU shader interface](https://mpv.io/manual/master/#options-glsl-shaders),
 [source stereo metadata](https://mpv.io/manual/master/#command-interface-video-params).
+
+## FLTube and top/bottom sources
+
+`--sbs-layout` also accepts `full-tb` (two unsqueezed eyes stacked vertically)
+and `half-tb` (each eye stored at half height). TB/FTB/FULL-TB/TAB/OVER-UNDER
+and HTB/HALF-TB filename markers are recognized. Top/bottom source metadata
+preserves its per-eye aspect and inverted eye order. The output remains SBS
+for DomeD and WayVR, so no compositor changes are required. Eye fitting,
+repacking and seam clamping run on the GPU; decoding and synchronization stay
+in mpv. Unsupported checkerboard, interleaved, anaglyph and spherical VR180/360
+projections are not converted by this flat-screen stereo renderer.
+
+Inside DomeD, use FLTube's **XR video** menu or pass the original URL directly:
+
+```sh
+mpvr --sbs-layout=half-sbs 'https://www.youtube.com/watch?v=VIDEO_ID'
+mpvr --domed --sbs-layout=full-tb 'https://www.youtube.com/watch?v=VIDEO_ID'
+```
+
+The built-in yt-dlp hook resolves adaptive video and audio and preserves seeking.
+Automatic XR layout selection reads the resolved title's explicit packing markers
+and available `stereo_mode` metadata from the selected video format. A bare “3D”
+title does not imply a layout. Select the layout manually when the uploader did
+not label it reliably. Outside DomeD, opaque webpage URLs need an explicit layout
+to route to WayVR; the launcher does not run a second yt-dlp extraction.
+
+Install a verified optimized build using
+`python3 xr/install.py --build-dir build-fltk-release`. The installer retains
+backups of existing per-user launchers/assets. This does not alter system files.
+
+Extended validation: 21 rendered cases include full/half top/bottom, source
+metadata, reversed eyes, subtitles and HTTP playback through the real yt-dlp
+hook with a controlled extractor. Use `MPVR_NATIVE_PLAYER` to select the native
+executable for the render suite. The separate nested DomeD test verifies XR
+placement and eye delivery without restarting a live session.

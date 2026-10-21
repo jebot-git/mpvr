@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Install the tested mpvr build and replace the current user's mpv launcher."""
+import argparse
 import datetime
 import os
 from pathlib import Path
@@ -21,7 +22,10 @@ def backup(path):
 
 
 def main():
-    binary = ROOT / 'build/mpv'
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--build-dir', type=Path, default=ROOT / 'build')
+    opts = parser.parse_args()
+    binary = opts.build_dir.resolve() / 'mpv'
     subprocess.run([str(binary), '--version'], check=True)
     native = PREFIX / 'libexec/mpvr/mpv'
     native.parent.mkdir(parents=True, exist_ok=True)

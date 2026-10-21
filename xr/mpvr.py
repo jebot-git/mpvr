@@ -99,7 +99,7 @@ def control(ctl, *args):
 
 
 def stereo_metadata(value):
-    """Return supported SBS, explicit mono, unsupported stereo, or no evidence."""
+    """Return supported packed stereo, explicit mono, unsupported stereo, or no evidence."""
     def normalize(text):
         return str(text).lower().replace('-', '_').replace(' ', '_')
     for stream in value.get('streams', []):
@@ -108,6 +108,7 @@ def stereo_metadata(value):
             mode = normalize(tags['stereo_mode'])
             if mode in ('left_right', 'right_left', 'side_by_side', 'sbs2l', 'sbs2r', '1', '11'):
                 return 'sbs'
+            if mode in ('top_bottom', 'bottom_top', 'above_below', 'tb', 'ab2l', 'ab2r', '2', '3'): return 'tb'
             if mode in ('mono', '2d', '0'): return 'mono'
             return 'unsupported'
     for item in [*value.get('streams', []), *value.get('frames', [])]:
@@ -115,6 +116,7 @@ def stereo_metadata(value):
             if normalize(data.get('side_data_type')) != 'stereo_3d': continue
             mode = normalize(data.get('type', ''))
             if mode in ('side_by_side', 'sidebyside', 'left_right', 'right_left'): return 'sbs'
+            if mode in ('top_bottom', 'bottom_top', 'top_and_bottom'): return 'tb'
             if mode in ('2d', 'mono'): return 'mono'
             return 'unsupported'
     return None
@@ -122,7 +124,7 @@ def stereo_metadata(value):
 
 def recognize_video(source, requested='auto'):
     if requested != 'auto':
-        return requested in ('full-sbs', 'half-sbs'), 'manual ' + requested
+        return requested in ('full-sbs', 'half-sbs', 'full-tb', 'half-tb'), 'manual ' + requested
     parsed = urllib.parse.urlsplit(source)
     path = urllib.parse.unquote(parsed.path)
     if Path(path).suffix.lower() in ('.m3u', '.m3u8', '.pls', '.xspf', '.mpls'):
@@ -136,12 +138,14 @@ def recognize_video(source, requested='auto'):
             '-of', 'json', probe_source], capture_output=True, text=True, timeout=4, check=True)
         metadata = stereo_metadata(json.loads(result.stdout))
         if metadata is not None:
-            return metadata == 'sbs', 'source metadata: ' + metadata
+            return metadata in ('sbs', 'tb'), 'source metadata: ' + metadata
     except (OSError, ValueError, subprocess.SubprocessError):
         pass
     stem = Path(path).stem.upper()
     if re.search(r'(?<![A-Z0-9])(?:H[-_. ]?SBS|HALF[-_. ]?SBS|F[-_. ]?SBS|FULL[-_. ]?SBS|SBS)(?![A-Z0-9])', stem):
         return True, 'SBS filename marker'
+    if re.search(r'(?<![A-Z0-9])(?:H[-_. ]?TB|HALF[-_. ]?TB|F[-_. ]?TB|FULL[-_. ]?TB|TB|TAB|OVER[-_. ]?UNDER)(?![A-Z0-9])', stem):
+        return True, 'top/bottom filename marker'
     return False, 'no supported stereo evidence'
 
 
@@ -149,7 +153,7 @@ def only_stereo_sources(args, requested):
     # An opaque playlist/script may add 2D files later. Keep uncertain launch
     # requests on the desktop instead of exposing packed mono to the headset.
     if requested == 'mono': return False
-    if requested in ('full-sbs', 'half-sbs'): return True
+    if requested in ('full-sbs', 'half-sbs', 'full-tb', 'half-tb'): return True
     before = args[:args.index('--')] if '--' in args else args
     for arg in before:
         if arg.startswith(('--playlist', '--autocreate-playlist', '--{')): return False
@@ -233,7 +237,7 @@ def main(argv=None):
     parser.add_argument('--xr-help', action='store_true')
     parser.add_argument('--xr-output', choices=('auto', 'wayvr', 'domed', 'desktop', 'off'), default='auto')
     parser.add_argument('--domed', action='store_true')
-    parser.add_argument('--sbs-layout', choices=('auto', 'full-sbs', 'half-sbs', 'mono'), default='auto')
+    parser.add_argument('--sbs-layout', choices=('auto', 'full-sbs', 'half-sbs', 'full-tb', 'half-tb', 'mono'), default='auto')
     parser.add_argument('--swap-eyes', action='store_true')
     parser.add_argument('--xr-size', default='2560x1440')
     opts, args = parser.parse_known_args(argv)

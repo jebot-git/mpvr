@@ -22,6 +22,8 @@ HERE = Path(__file__).resolve().parent
 
 
 def native_player():
+    if os.environ.get('MPVR_NATIVE_PLAYER'):
+        return Path(os.environ['MPVR_NATIVE_PLAYER'])
     installed = HERE.parent.parent / 'libexec/mpvr/mpv'
     source = HERE.parent / 'build/mpv'
     return installed if installed.is_file() else source
@@ -54,14 +56,14 @@ def domed_status():
         info = record.lstat()
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
                 or info.st_mode & 0o022 or info.st_size > 4096):
-            return None
+            return owned
         value = json.loads(record.read_text())
         port, xr = value.get('control_port'), value.get('xr_socket')
         if (value.get('version') != 1 or value.get('compositor_pid') != pid
                 or type(port) is not int or not 1 <= port <= 65535 or not isinstance(xr, str) or not xr):
-            return None
+            return owned
         if socket_pid(Path(xr) if Path(xr).is_absolute() else runtime / xr) != pid:
-            return None
+            return owned
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with http.open(f'http://127.0.0.1:{port}/api/integrations/mpvr', timeout=2) as response:
             status = json.loads(response.read(4097))
@@ -253,7 +255,9 @@ def main(argv=None):
     # Opening the application menu without a file should create the normal
     # idle GUI, including inside an active DomeD session.
     backend = 'off' if gui_idle else opts.xr_output
-    dome = domed_status() if backend in ('auto', 'domed') and not info else None
+    dome = domed_status() if backend in ('auto', 'domed', 'wayvr') and not info else None
+    if backend == 'wayvr' and dome is not None:
+        backend = 'domed' if dome['active'] else 'off'
     if backend == 'auto':
         # Inside DomeD stay in its realm; never fall through into another desktop.
         if dome is not None: backend = 'domed' if dome['active'] else 'off'

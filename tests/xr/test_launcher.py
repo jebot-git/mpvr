@@ -40,8 +40,22 @@ class LauncherTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'No active'): mpvr.main(['--domed', 'a.mkv'])
 
     def test_unavailable_wayvr_errors(self):
-        with patch.object(mpvr, 'headset_connected', return_value=False):
+        with patch.object(mpvr, 'domed_status', return_value=None), patch.object(mpvr, 'headset_connected', return_value=False):
             with self.assertRaisesRegex(RuntimeError, 'not connected'): mpvr.main(['--xr-output=wayvr', '--sbs-layout=full-sbs', 'a.mkv'])
+
+    def test_dome_owns_stereo_even_with_saved_wayvr_preference(self):
+        with patch.object(mpvr, 'domed_status', return_value={'socket':'dome-xr','active':True}), patch.object(mpvr, 'headset_connected') as headset, patch.object(mpvr, 'control') as control, patch.object(mpvr.subprocess, 'Popen', side_effect=RuntimeError('Dome launch reached')) as launch:
+            with self.assertRaisesRegex(RuntimeError, 'Dome launch reached'):
+                mpvr.main(['--xr-output=wayvr','--sbs-layout=full-sbs','movie.mkv'])
+            headset.assert_not_called();control.assert_not_called()
+            self.assertEqual(launch.call_args.kwargs['env']['WAYLAND_DISPLAY'],'dome-xr')
+            self.assertIn('--wayland-app-id=org.mpvr.Sbs',launch.call_args.args[0])
+            self.assertFalse(any(a.startswith('--osd-font') for a in launch.call_args.args[0]))
+
+    def test_idle_dome_does_not_escape_to_wayvr(self):
+        with patch.object(mpvr, 'domed_status', return_value={'socket':'dome-xr','active':False}), patch.object(mpvr, 'headset_connected') as headset, patch.object(mpvr.os, 'execv', side_effect=SystemExit):
+            with self.assertRaises(SystemExit):mpvr.main(['--xr-output=wayvr','movie.mkv'])
+            headset.assert_not_called()
 
     def test_odd_surface_width_is_rejected(self):
         with self.assertRaisesRegex(ValueError, 'even'): mpvr.main(['--xr-size=641x360', 'a.mkv'])

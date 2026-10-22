@@ -1,0 +1,8 @@
+{
+  "source": "mpv upstream sub/osd_font.otf",
+  "source_sha256": "b2bd8f34ac4afa0a4ca24d7a94e06589ed783ea0ded16e512b2f8f7119c28a1f",
+  "format": "BDF, monochrome 32px native symbol strike",
+  "glyphs": 58,
+  "rasterizer": "FreeType monochrome; conversion performed once, no outline font shipped or runtime conversion",
+  "sha256": "33defe549e0d1118a2195b561a3266b480b32d9e96f1fdf782259cf81b85f256"
+}

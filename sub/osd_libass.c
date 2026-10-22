@@ -29,7 +29,7 @@
 #include "osd_state.h"
 
 static const char osd_font_pfb[] =
-#include "sub/osd_font.otf.inc"
+#include "sub/osd_font.bdf.inc"
 ;
 
 #include "sub/ass_mp.h"

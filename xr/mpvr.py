@@ -21,6 +21,27 @@ import urllib.parse
 HERE = Path(__file__).resolve().parent
 
 
+def bdf_appearance_args(args):
+    """Resolve native BDF text before starting libass in the player process."""
+    candidates = [os.environ.get('DOME_BDF_FONT_TOOL'), shutil.which('dome-bdf-font'),
+                  HERE.parents[1] / 'bin/dome-bdf-font',
+                  HERE.parents[1] / 'dome-compositor/target/debug/dome-bdf-font',
+                  HERE.parents[2] / 'dome-compositor/target/debug/dome-bdf-font']
+    helper = next((Path(path) for path in candidates if path and Path(path).is_file()), None)
+    if helper is None:
+        raise RuntimeError('mpvr requires dome-bdf-font and BDF-enabled libass')
+    chosen = json.loads(subprocess.check_output([str(helper)], text=True, timeout=30))
+    os.environ['FONTCONFIG_FILE'] = chosen['fontconfig']
+    os.environ['DE_XR_FONTCONFIG_BASE'] = chosen.get('fontconfig_base', '/etc/fonts/fonts.conf')
+    family, pixels = chosen.get('media_family', chosen['family']), chosen['pixels']
+    managed = []
+    for name, value in [('osd-font', family), ('sub-font', family), ('osd-font-size', pixels), ('sub-font-size', pixels)]:
+        if not any(arg.startswith('--' + name + '=') for arg in args):
+            managed.append('--' + name + '=' + str(value))
+    index = args.index('--') if '--' in args else len(args)
+    return args[:index] + managed + args[index:]
+
+
 def native_player():
     if os.environ.get('MPVR_NATIVE_PLAYER'):
         return Path(os.environ['MPVR_NATIVE_PLAYER'])
@@ -258,6 +279,8 @@ def main(argv=None):
                 and not any(a.startswith('--playlist=') for a in option_args))
     # Opening the application menu without a file should create the normal
     # idle GUI, including inside an active DomeD session.
+    if not info:
+        args = bdf_appearance_args(args)
     backend = 'off' if gui_idle else opts.xr_output
     dome = domed_status() if backend in ('auto', 'domed', 'wayvr') and not info else None
     if backend == 'wayvr' and dome is not None:

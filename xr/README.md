@@ -3,7 +3,8 @@
 mpvr adds existing packed-stereo playback to an upstream mpv checkout. It does not synthesize
 3D depth or convert ordinary video to stereo. Outside DomeD, ordinary videos stay
 on the desktop. DomeD and the explicit transport preview can duplicate mono to both eyes. The Python launcher routes processes; decoding, audio, synchronization,
-GPU rendering and seeking remain in the compiled mpv player.
+GPU rendering and seeking remain in the compiled mpv player. This frontend uses
+mpv/Lua rather than FLTK or Qt; `DE_XR_TOOLKIT` has no effect.
 
 ## Commands
 
@@ -140,8 +141,14 @@ meson setup build --prefix="$HOME/.local/opt/mpvr" -Dbuildtype=release \
 meson compile -C build
 meson test -C build --print-errorlogs
 python3 -m unittest discover -s tests/xr -p test_launcher.py
-python3 xr/install.py
+python3 xr/install.py --build-dir build
+install -Dm644 xr/man/mpvr.1 "$HOME/.local/share/man/man1/mpvr.1"
 ```
+
+Build and test as your regular user. `xr/install.py` is a per-user installer,
+not a staging/system installer; it changes launchers and desktop entries. The
+manual is installed explicitly in the example above. For an isolated shared
+deployment, review the suite's staged artifacts before privileged installation.
 
 The installer copies the compiled player to `~/.local/opt/mpvr/libexec/mpvr/mpv`,
 assets to `share/mpvr`, and creates `~/.local/bin/mpvr` and `~/.local/bin/mpv`.
@@ -158,6 +165,9 @@ headers are not runtime dependencies or repository contents. Ordinary builds
 use development packages installed through the distribution package manager.
 
 ## Validation
+
+The counts below describe earlier validation, not a promise about a new runtime
+or headset. Run the relevant suites against your chosen executable and setup.
 
 - Upstream Meson unit suite: 13 passed.
 - Launcher tests: 15 passed; metadata/filename precedence, wide 2D input, mixed

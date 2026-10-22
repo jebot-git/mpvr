@@ -1,4 +1,4 @@
-.TH MPVR 1 "2026-10-20" "de-xr" "User Commands"
+.TH MPVR 1 "2026-10-21" "de-xr" "User Commands"
 .SH NAME
 mpvr \- play desktop and stereoscopic XR video with mpv
 .SH SYNOPSIS
@@ -6,7 +6,30 @@ mpvr \- play desktop and stereoscopic XR video with mpv
 mpvr [XR\-OPTIONS] [MPV\-OPTIONS] [FILE...]
 .fi
 .SH DESCRIPTION
-An mpv fork and launcher for GPU side\-by\-side playback in DomeD or an active WiVRn/WayVR session. Existing SBS content is fitted per eye, with subtitles duplicated. No depth synthesis is performed. In automatic mode outside DomeD, unrecognized or mono video stays on the desktop; DomeD can duplicate mono content into both eyes. Unrecognized options are passed to mpv.
+A native mpv fork and Python launcher for GPU side\-by\-side playback in DomeD or an active WiVRn/WayVR session. Existing SBS content is fitted per eye, with subtitles duplicated. No depth synthesis is performed. In automatic mode outside DomeD, unrecognized or mono video stays on the desktop; DomeD can duplicate mono content into both eyes. Unrecognized options are passed to mpv.
+.PP
+Decoding, audio, synchronization, seeking and GPU rendering remain in mpv.
+The interface uses mpv/Lua rather than FLTK or Qt; DE_XR_TOOLKIT has no effect.
+Top/bottom input is repacked to SBS on the GPU. Unsupported spherical,
+checkerboard, interleaved and anaglyph sources are not depth-converted.
+.SH ROUTING
+Auto stays with a verified DomeD session when present; an inactive/incompatible
+DomeD falls back to ordinary desktop playback. Outside DomeD, connected WiVRn/WayVR
+is selected only for recognized stereo sources. Unverified/mono video stays
+on the desktop, including a requested WayVR route without an explicit stereo layout.
+Explicit stereo XR requests fail if the selected backend is unavailable.
+No desktop, runtime or headset session is started or restarted by this launcher.
+.PP
+Stream metadata takes precedence over filename packing markers; an explicit
+layout overrides detection. A wide image or a bare 3D label is insufficient.
+Full/half SBS and top/bottom markers are supported, including right-first order.
+Opaque webpage URLs outside DomeD need a manual layout to route to WayVR;
+mpv's yt-dlp hook resolves the media rather than a second launcher extraction.
+Inside DomeD unknown sources can duplicate mono into both eyes.
+.PP
+Loading unrecognized/2D content later in WayVR pauses/blacks the transport and
+hands that content to a normal desktop player, preserving position, volume,
+mute and speed. The remaining XR playlist is not resumed after that handoff.
 .SH APPLICATION MENU
 The application-menu entry uses \-\-player-operation-mode=pseudo-gui. With no
 file selected it opens an idle desktop window, including when DomeD or XR is
@@ -27,7 +50,8 @@ when the compositor or session bus does not support application menus.
 Show launcher\-specific help. \-\-help shows mpv help.
 .TP
 .B "\-\-xr\-output auto|wayvr|domed|desktop|off"
-Select output routing; default auto.
+Select output routing; default auto. desktop is a squeezed SBS transport
+preview, while off keeps ordinary upstream desktop playback.
 .TP
 .B "\-\-domed"
 Select the DomeD backend.
@@ -39,12 +63,41 @@ Override stereo layout detection. Full/half top-bottom input is repacked to SBS 
 Swap the left and right views.
 .TP
 .B "\-\-xr\-size WIDTHxHEIGHT"
-Select XR output resolution; default 2560x1440.
+Select XR transport resolution; default 2560x1440. Dimensions must be 10 to
+9999 pixels and width must be even. This is not a per-eye resolution option.
+.SH CONTROLS
+Standard mpv controls remain: Space pauses, arrows seek and q quits.
+Desktop right-click opens the context menu, Ctrl+P opens the menu and the
+backtick key opens the console. XR output duplicates OSD/subtitles and retains
+keyboard controls; the ordinary mouse OSC is disabled on the packed stereo surface.
+.SH ENVIRONMENT
+.TP
+.B MPVR_NATIVE_PLAYER
+Override the compiled mpv executable used by the launcher and render tests.
+.TP
+.B MPVR_WAYVRCTL
+Override the WayVR control executable.
+.TP
+.B WAYLAND_DISPLAY, XDG_RUNTIME_DIR
+Select the compositor socket/runtime directory. DomeD discovery verifies the
+same-user socket peer and owned session record before selecting its XR socket.
+.SH LIMITATIONS
+Depth synthesis is not provided. Avoid additional crop/rotate/stereo pixel
+filters in XR mode. HDR depends on mpv and the compositor/runtime; SDR tests
+do not validate HDR or sustained physical-headset playback.
+.SH INSTALLATION
+Build optimized mpv with its decoder/GPU/audio dependencies and Lua UI support.
+The source xr/install.py helper takes --build-dir and installs per-user
+launchers/assets, retaining backups under ~/.local/state/mpvr/backups.
+It does not install this manual; copy it to the chosen prefix's share/man/man1.
+It does not replace /usr/bin/mpv or the system libmpv.
 .SH EXAMPLES
 mpvr movie_SBS.mkv
 .br
 mpvr \-\-domed \-\-sbs\-layout=half\-sbs movie.mkv
 .br
 mpvr \-\-xr\-output=off movie.mkv
+.br
+mpvr \-\-sbs\-layout=full\-tb movie_FTB.mkv
 .SH SEE ALSO
 mpv(1), qimgvr(1), dome\-compositor(1)

@@ -240,3 +240,14 @@ metadata, reversed eyes, subtitles and HTTP playback through the real yt-dlp
 hook with a controlled extractor. Use `MPVR_NATIVE_PLAYER` to select the native
 executable for the render suite. The separate nested DomeD test verifies XR
 placement and eye delivery without restarting a live session.
+
+## Dome desktop renderer default (2026-10-23)
+
+Desktop windows on a validated same-user Dome Wayland socket default to OpenGL
+EGL. Automatic Vulkan selection was reproduced exiting at the first frame with
+`create_immed failed ... invalid wl_buffer`; the same H.264 clip completed with
+EGL. This does not enable XR or change another compositor's defaults. Explicit
+`--gpu-api`, `--gpu-context` and non-GPU `--vo` options remain authoritative, and
+inserted options precede a filename separator. The native release player and XR
+rendering pipeline are unchanged. Launcher routing has 20 passing isolated tests;
+a local hardware Wayland playback check and the native UI suite validate playback.

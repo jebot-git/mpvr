@@ -13,6 +13,28 @@ mpvr = importlib.util.module_from_spec(spec); spec.loader.exec_module(mpvr)
 
 
 class LauncherTests(unittest.TestCase):
+    def setUp(self):
+        # Routing tests must not run the workstation's font resolver subprocess.
+        fonts = patch.object(mpvr, 'bdf_appearance_args', side_effect=lambda args: args)
+        fonts.start()
+        self.addCleanup(fonts.stop)
+
+    def test_dome_desktop_defaults_to_egl_before_separator(self):
+        args = ['--pause', '--', '--gpu-api=vulkan.mkv']
+        with patch.dict(mpvr.os.environ, {'WAYLAND_DISPLAY':'desktop', 'XDG_RUNTIME_DIR':'/tmp'}), patch.object(mpvr, 'socket_pid', return_value=123):
+            self.assertEqual(mpvr.desktop_args(args), ['--pause','--gpu-api=opengl','--gpu-context=wayland','--','--gpu-api=vulkan.mkv'])
+
+    def test_dome_desktop_preserves_explicit_renderers(self):
+        with patch.dict(mpvr.os.environ, {'WAYLAND_DISPLAY':'desktop'}), patch.object(mpvr, 'socket_pid') as peer:
+            for args in [['--gpu-api=vulkan','a.mkv'], ['--gpu-context=x11egl','a.mkv'], ['--vo=null','a.mkv']]:
+                self.assertEqual(mpvr.desktop_args(args), args)
+            peer.assert_not_called()
+
+    def test_foreign_compositor_keeps_default_renderer(self):
+        args = ['a.mkv']
+        with patch.dict(mpvr.os.environ, {'WAYLAND_DISPLAY':'foreign'}), patch.object(mpvr, 'socket_pid', side_effect=ValueError('not Dome')):
+            self.assertEqual(mpvr.desktop_args(args), args)
+
     def test_encoded_paths_and_options_are_lossless(self):
         args = ['--title=a b', '/tmp/video # ü_SBS.mkv', '--sub-file=/tmp/sub title.srt']
         self.assertEqual(json.loads(base64.urlsafe_b64decode(mpvr.encode_args(args))), args)

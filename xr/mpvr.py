@@ -96,6 +96,27 @@ def domed_status():
     return owned
 
 
+def desktop_args(args):
+    """Use Dome's working EGL path instead of auto-selecting Vulkan DMA-BUFs."""
+    display = os.environ.get('WAYLAND_DISPLAY')
+    if not display:
+        return args
+    before_separator = args[:args.index('--')] if '--' in args else args
+    if any(a == option or a.startswith(option + '=')
+           for a in before_separator for option in ('--gpu-api', '--gpu-context')):
+        return args
+    if any(a.startswith('--vo=') and a.split('=', 1)[1] not in ('gpu', 'gpu-next')
+           for a in before_separator):
+        return args
+    path = Path(display) if Path(display).is_absolute() else Path(os.environ.get('XDG_RUNTIME_DIR', '/nonexistent')) / display
+    try:
+        socket_pid(path)  # Validate the same-user Dome compositor, independently of XR.
+    except (OSError, ValueError):
+        return args
+    index = args.index('--') if '--' in args else len(args)
+    return args[:index] + ['--gpu-api=opengl', '--gpu-context=wayland'] + args[index:]
+
+
 def headset_connected():
     try:
         for prop in ('HeadsetConnected', 'SessionRunning'):
@@ -295,6 +316,8 @@ def main(argv=None):
     if '--version' in option_args or '-V' in option_args:
         print('mpvr 0.1.2 (SBS XR fork of mpv)', flush=True)
     if info or not args or backend == 'off':
+        if not info:
+            args = desktop_args(args)
         os.execv(native_player(), [str(native_player()), *args])
     if backend == 'domed' and not (dome and dome['active']):
         raise RuntimeError('No active compatible DomeD XR session on the current Wayland socket')

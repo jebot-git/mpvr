@@ -90,7 +90,27 @@ def domed_status():
             status = json.loads(response.read(4097))
         if (status.get('version') == 1 and status.get('compositor_pid') == pid
                 and status.get('xr_socket') == xr and status.get('sbs_app_id') == 'org.mpvr.Sbs'):
-            return dict(socket=xr, active=status.get('xr_active') is True)
+            try:
+                with http.open(f'http://127.0.0.1:{port}/api/xr-control', timeout=1) as response:
+                    control = json.loads(response.read(4097))
+            except (OSError, ValueError):
+                control = {}
+            desktop = str(path) if value.get('realm') == 'desktop' else None
+            if desktop is None:
+                for candidate in sorted(runtime.glob('*.dome-session.json'))[:128]:
+                    try:
+                        info = candidate.lstat()
+                        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o022 or info.st_size > 4096:
+                            continue
+                        context = json.loads(candidate.read_text())
+                        target = Path(str(candidate).removesuffix('.dome-session.json'))
+                        if context.get('compositor_pid') == pid and context.get('realm') == 'desktop' and socket_pid(target) == pid:
+                            desktop = str(target)
+                            break
+                    except (OSError, ValueError, TypeError):
+                        continue
+            return dict(socket=xr, active=status.get('xr_active') is True,
+                        working_xr=control.get('input_realm') == 'xr', desktop_socket=desktop)
     except (OSError, ValueError, TypeError):
         pass
     return owned
@@ -308,7 +328,11 @@ def main(argv=None):
         backend = 'domed' if dome['active'] else 'off'
     if backend == 'auto':
         # Inside DomeD stay in its realm; never fall through into another desktop.
-        if dome is not None: backend = 'domed' if dome['active'] else 'off'
+        if dome is not None:
+            backend = 'domed' if dome['active'] and dome.get('working_xr', False) else 'off'
+            if backend == 'off' and dome.get('desktop_socket'):
+                os.environ['WAYLAND_DISPLAY'] = dome['desktop_socket']
+                os.environ.pop('WAYLAND_SOCKET', None)
         else: backend = 'wayvr' if not info and headset_connected() else 'off'
     if backend == 'wayvr' and not only_stereo_sources(args, opts.sbs_layout):
         print('mpvr: 2D or unverified input; using desktop playback', file=sys.stderr)

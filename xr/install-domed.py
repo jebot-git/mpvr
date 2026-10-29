@@ -45,8 +45,8 @@ def configure(config, data, state, executable, disable=False):
         icon = str(icon) if icon.is_file() else 'video-x-generic'
         desktop.parent.mkdir(parents=True, exist_ok=True)
         desktop.write_text('[Desktop Entry]\nType=Application\nName=mpvr (DomeD)\n'
-            'Comment=Play videos and SBS stereo in DomeD’s XR session\n'
-            f'Exec={argument} --domed %f\nIcon={icon}\nTerminal=false\nNoDisplay=true\n'
+            'Comment=Play videos in the current DomeD working mode\n'
+            f'Exec={argument} %f\nIcon={icon}\nTerminal=false\nNoDisplay=true\n'
             'Categories=AudioVideo;Video;Player;\nMimeType=' + ';'.join(MIMES) + ';\n')
     associations.parent.mkdir(parents=True, exist_ok=True)
     with associations.open('w') as output:
@@ -65,7 +65,7 @@ def main():
     configure(config, data, state, args.executable, args.disable)
     if shutil.which('update-desktop-database'):
         subprocess.run(['update-desktop-database', str(data / 'applications')], check=True)
-    print('DomeD video opener ' + ('restored.' if args.disable else 'enabled: mpvr --domed.'))
+    print('DomeD video opener ' + ('restored.' if args.disable else 'enabled: mpvr automatic working-mode routing.'))
 
 
 if __name__ == '__main__':

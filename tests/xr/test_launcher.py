@@ -57,6 +57,19 @@ class LauncherTests(unittest.TestCase):
             with self.assertRaises(SystemExit): mpvr.main(['a.mkv'])
             headset.assert_not_called()
 
+    def test_active_headset_in_desktop_working_mode_does_not_redirect_auto_video(self):
+        status = {'socket':'dome-xr','active':True,'working_xr':False}
+        with patch.object(mpvr, 'domed_status', return_value=status), patch.object(mpvr, 'headset_connected') as headset, patch.object(mpvr.os, 'execv', side_effect=SystemExit) as execute, patch.object(mpvr, 'desktop_args', side_effect=lambda a:a):
+            with self.assertRaises(SystemExit): mpvr.main(['https://example.invalid/video ü.mp4'])
+            self.assertEqual(execute.call_args.args[1][-1], 'https://example.invalid/video ü.mp4')
+            headset.assert_not_called()
+
+    def test_auto_xr_and_explicit_xr_remain_available(self):
+        for arguments, working_xr in [(['movie.mkv'],True),(['--domed','movie.mkv'],False)]:
+            status = {'socket':'dome-xr','active':True,'working_xr':working_xr}
+            with patch.object(mpvr, 'domed_status', return_value=status), patch.object(mpvr.subprocess, 'Popen', side_effect=RuntimeError('XR child selected')):
+                with self.assertRaisesRegex(RuntimeError, 'XR child selected'):mpvr.main(arguments)
+
     def test_unavailable_explicit_dome_errors(self):
         with patch.object(mpvr, 'domed_status', return_value=None):
             with self.assertRaisesRegex(RuntimeError, 'No active'): mpvr.main(['--domed', 'a.mkv'])

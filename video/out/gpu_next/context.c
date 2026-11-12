@@ -182,6 +182,17 @@ err_out:
 
 bool gpu_ctx_resize(struct gpu_ctx *ctx, int w, int h)
 {
+#if HAVE_GL && HAVE_EGL && defined(PL_HAVE_OPENGL)
+    // Wayland initially makes the EGL context current without a window surface.
+    // Configure events can request a resize before reconfig creates that surface;
+    // querying its default framebuffer at this point produces GL_INVALID_OPERATION.
+    // Reconfig will resize the swapchain again after the window is available.
+    if (ra_is_gl(ctx->ra_ctx->ra) &&
+        eglGetCurrentContext() != EGL_NO_CONTEXT &&
+        eglGetCurrentSurface(EGL_DRAW) == EGL_NO_SURFACE)
+        return true;
+#endif
+
 #if HAVE_VULKAN
     if (ra_vk_ctx_get(ctx->ra_ctx))
         // vulkan RA handles this by itself
